@@ -8,14 +8,25 @@
 import SwiftUI
 
 struct ContentView: View {
+    @StateObject private var viewModel = QueueViewModel()
+    
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        TabView {
+            RegistrationView(viewModel: viewModel)
+                .tabItem {
+                    Label("登记", systemImage: "square.and.pencil")
+                }
+            
+            CheckInView(viewModel: viewModel)
+                .tabItem {
+                    Label("签到", systemImage: "checkmark.circle")
+                }
+            
+            DispatchListView(viewModel: viewModel)
+                .tabItem {
+                    Label("发车列表", systemImage: "list.bullet")
+                }
         }
-        .padding()
     }
 }
 
