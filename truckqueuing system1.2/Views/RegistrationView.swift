@@ -9,6 +9,8 @@ struct RegistrationView: View {
     @State private var selectedVehicleType = VehicleType.normal
     @State private var expectedCheckInTime = Date()
     @State private var showSuccessAlert = false
+    @State private var showErrorAlert = false
+    @State private var errorMessage = ""
     
     var body: some View {
         NavigationView {
@@ -23,7 +25,7 @@ struct RegistrationView: View {
                         DatePicker("预计签到时间",
                                  selection: $expectedCheckInTime,
                                  in: Date()...Date().addingTimeInterval(12*3600),
-                                 displayedComponents: [.hourAndMinute])
+                                 displayedComponents: [.date, .hourAndMinute])
                     }
                 }
                 
@@ -59,6 +61,11 @@ struct RegistrationView: View {
             } message: {
                 Text(isContinuousDriver ? "请在预定时间签到" : "已自动签到并进入发车队列")
             }
+            .alert("登记失败", isPresented: $showErrorAlert) {
+                Button("确定", role: .cancel) { }
+            } message: {
+                Text(errorMessage)
+            }
         }
     }
     
@@ -76,13 +83,24 @@ struct RegistrationView: View {
             expectedCheckInTime: isContinuousDriver ? expectedCheckInTime : nil
         )
         
-        let vehicle = viewModel.registerVehicle(
-            plateNumber: plateNumber.uppercased().trimmingCharacters(in: .whitespaces),
-            type: selectedVehicleType
-        )
-        
-        viewModel.createRegistration(driver: driver, vehicle: vehicle)
-        showSuccessAlert = true
+        do {
+            let vehicle = try viewModel.registerVehicle(
+                plateNumber: plateNumber.uppercased().trimmingCharacters(in: .whitespaces),
+                type: selectedVehicleType
+            )
+            
+            viewModel.createRegistration(driver: driver, vehicle: vehicle)
+            showSuccessAlert = true
+        } catch RegistrationError.vehicleInPenalty {
+            errorMessage = "该车辆在惩罚期内，12小时内不能重新登记"
+            showErrorAlert = true
+        } catch RegistrationError.vehicleAlreadyRegistered {
+            errorMessage = "该车辆在24小时内已经登记过，请等待24小时后再次登记"
+            showErrorAlert = true
+        } catch {
+            errorMessage = "登记失败，请稍后重试"
+            showErrorAlert = true
+        }
     }
     
     private func clearForm() {

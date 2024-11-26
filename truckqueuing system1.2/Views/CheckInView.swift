@@ -10,9 +10,10 @@ struct CheckInView: View {
         if searchPlateNumber.isEmpty {
             return viewModel.registrations.filter { $0.checkInTime == nil }
         } else {
-            return viewModel.registrations.filter { 
-                $0.checkInTime == nil && 
-                $0.vehicle.plateNumber.contains(searchPlateNumber)
+            return viewModel.registrations.filter { registration in
+                guard let vehicle = registration.vehicle else { return false }
+                return registration.checkInTime == nil && 
+                       vehicle.plateNumber.contains(searchPlateNumber)
             }
         }
     }
@@ -27,7 +28,7 @@ struct CheckInView: View {
                 Section(header: Text("待签到列表")) {
                     ForEach(filteredRegistrations) { registration in
                         RegistrationRow(registration: registration, viewModel: viewModel) {
-                            if registration.driver.isContinuousDriver {
+                            if let driver = registration.driver, driver.isContinuousDriver {
                                 if viewModel.canCheckIn(registration: registration) {
                                     viewModel.checkIn(registration: registration)
                                 } else {
@@ -59,11 +60,16 @@ struct RegistrationRow: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading) {
-                Text(registration.driver.name)
-                    .font(.headline)
-                Text(registration.vehicle.plateNumber)
-                    .font(.subheadline)
-                if registration.driver.isContinuousDriver,
+                if let driver = registration.driver {
+                    Text(driver.name)
+                        .font(.headline)
+                }
+                if let vehicle = registration.vehicle {
+                    Text(vehicle.plateNumber)
+                        .font(.subheadline)
+                }
+                if let driver = registration.driver,
+                   driver.isContinuousDriver,
                    let expectedTime = registration.expectedCheckInTime {
                     Text("预计签到: \(expectedTime.formatted(date: .omitted, time: .shortened))")
                         .font(.caption)
@@ -77,7 +83,10 @@ struct RegistrationRow: View {
                 checkInAction()
             }
             .buttonStyle(.borderedProminent)
-            .disabled(registration.driver.isContinuousDriver && !viewModel.canCheckIn(registration: registration))
+            .disabled(
+                registration.driver?.isContinuousDriver == true && 
+                !viewModel.canCheckIn(registration: registration)
+            )
         }
         .padding(.vertical, 4)
     }
