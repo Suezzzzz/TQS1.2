@@ -12,6 +12,9 @@ class QueueViewModel: ObservableObject {
         }
     }
     @Published var vehicles: [Vehicle] = []
+    @Published var timeSlots: [TimeSlot] = []
+    @Published var selectedTimeSlot: TimeSlot?
+    @Published var showingSuccessAlert = false
     
     init() {
         loadData()
@@ -78,7 +81,7 @@ class QueueViewModel: ObservableObject {
         return vehicle
     }
     
-    func createRegistration(driver: Driver, vehicle: Vehicle) {
+    func createRegistration(driver: Driver, vehicle: Vehicle, timeSlot: TimeSlot? = nil) {
         let registration = Registration(
             id: UUID().uuidString,
             driverId: driver.id,
@@ -86,7 +89,7 @@ class QueueViewModel: ObservableObject {
             expiryDate: Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date(),
             driver: driver,
             checkInTime: driver.isContinuousDriver ? nil : Date(),
-            expectedCheckInTime: driver.isContinuousDriver ? Date() : nil,
+            expectedCheckInTime: timeSlot?.startTime,
             vehicle: vehicle
         )
         registrations.append(registration)
@@ -96,24 +99,8 @@ class QueueViewModel: ObservableObject {
     // MARK: - Check-in Methods
     func checkIn(registration: Registration) {
         if let index = registrations.firstIndex(where: { $0.id == registration.id }) {
-            if let driver = registration.driver, driver.isContinuousDriver {
-                guard let expectedTime = registration.expectedCheckInTime else { return }
-                let currentTime = Date()
-                let timeWindow: TimeInterval = 30 * 60
-                
-                let earliestTime = expectedTime.addingTimeInterval(-timeWindow/2)
-                let latestTime = expectedTime.addingTimeInterval(timeWindow/2)
-                
-                guard currentTime >= earliestTime && currentTime <= latestTime else {
-                    var updatedRegistration = registration
-                    updatedRegistration.missedCheckInTime = currentTime
-                    registrations[index] = updatedRegistration
-                    return
-                }
-            }
-            
             var updatedRegistration = registration
-            updatedRegistration.checkIn()
+            updatedRegistration.checkInTime = Date()
             registrations[index] = updatedRegistration
             sortRegistrations()
         }
@@ -191,8 +178,14 @@ class QueueViewModel: ObservableObject {
             // 同级排序
             if driver1.isContinuousDriver == driver2.isContinuousDriver {
                 if driver1.isContinuousDriver {
+                    // 如果都是连跑司机且都已签到，按签到时间排序
+                    if let checkIn1 = reg1.checkInTime, let checkIn2 = reg2.checkInTime {
+                        return checkIn1 < checkIn2
+                    }
+                    // 如果有一个未签到，按预约时间排序
                     return (reg1.expectedCheckInTime ?? reg1.registrationDate) < (reg2.expectedCheckInTime ?? reg2.registrationDate)
                 } else {
+                    // 非连跑司机按登记时间排序
                     return reg1.registrationDate < reg2.registrationDate
                 }
             }
@@ -210,11 +203,17 @@ class QueueViewModel: ObservableObject {
         }
         
         let currentTime = Date()
-        let timeWindow: TimeInterval = 30 * 60
-        let earliestTime = expectedTime.addingTimeInterval(-timeWindow/2)
-        let latestTime = expectedTime.addingTimeInterval(timeWindow/2)
+        let calendar = Calendar.current
         
-        return currentTime >= earliestTime && currentTime <= latestTime
+        // 获取预期时间的日期和小时
+        let expectedComponents = calendar.dateComponents([.year, .month, .day, .hour], from: expectedTime)
+        let currentComponents = calendar.dateComponents([.year, .month, .day, .hour], from: currentTime)
+        
+        // 检查是否是同一天同一小时
+        return expectedComponents.year == currentComponents.year &&
+               expectedComponents.month == currentComponents.month &&
+               expectedComponents.day == currentComponents.day &&
+               expectedComponents.hour == currentComponents.hour
     }
     
     private func isVehicleRegisteredWithin24Hours(_ plateNumber: String) -> Bool {
@@ -237,6 +236,89 @@ class QueueViewModel: ObservableObject {
             registrations[index] = updatedRegistration
             sortRegistrations()
         }
+    }
+    
+    // 更新可用时间段
+    func updateTimeSlots(for date: Date) {
+        timeSlots = TimeSlot.generateAvailableTimeSlots(from: date)
+    }
+    
+    // 在时间段中添加司机
+    func registerDriver(_ driver: Driver, for timeSlot: TimeSlot) {
+        guard let index = timeSlots.firstIndex(where: { $0.id == timeSlot.id }) else { return }
+        timeSlots[index].registeredDrivers.append(driver)
+    }
+    
+    // 司机签到
+    func checkIn(driver: Driver, timeSlot: TimeSlot) {
+        if let index = drivers.firstIndex(where: { $0.id == driver.id }) {
+            var updatedDriver = driver
+            updatedDriver.status = .checkedIn
+            updatedDriver.checkInTime = Date()
+            drivers[index] = updatedDriver
+        }
+    }
+    
+    // 发车处理
+    func dispatch(driver: Driver, trailerNumber: String) {
+        if let index = drivers.firstIndex(where: { $0.id == driver.id }) {
+            var updatedDriver = driver
+            updatedDriver.status = .dispatched
+            updatedDriver.trailerNumber = trailerNumber
+            drivers[index] = updatedDriver
+            showingSuccessAlert = true
+        }
+    }
+    
+    func getTodayCheckInRegistrations() -> [Registration] {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        
+        return registrations.filter { registration in
+            guard let driver = registration.driver,
+                  let expectedTime = registration.expectedCheckInTime else {
+                return false
+            }
+            
+            let registrationDate = calendar.startOfDay(for: expectedTime)
+            return driver.isContinuousDriver &&
+                   !registration.isDispatched &&
+                   registrationDate == today
+        }.sorted { reg1, reg2 in
+            // 按时间段排
+            guard let time1 = reg1.expectedCheckInTime,
+                  let time2 = reg2.expectedCheckInTime else {
+                return false
+            }
+            return time1 < time2
+        }
+    }
+    
+    func clearAllData(password: String) -> Bool {
+        // 验证密码
+        guard password == "jian.pan" else { return false }
+        
+        // 清除所有数据
+        registrations.removeAll()
+        drivers.removeAll()
+        vehicles.removeAll()
+        timeSlots.removeAll()
+        
+        // 清除 UserDefaults 中的数据
+        UserDefaults.standard.removeObject(forKey: "savedRegistrations")
+        UserDefaults.standard.removeObject(forKey: "savedDrivers")
+        
+        return true
+    }
+    
+    func getRegistrationCountForTimeSlot(_ timeSlot: TimeSlot) -> Int {
+        registrations.filter { registration in
+            guard let expectedTime = registration.expectedCheckInTime else { return false }
+            let calendar = Calendar.current
+            let expectedHour = calendar.component(.hour, from: expectedTime)
+            let slotHour = calendar.component(.hour, from: timeSlot.startTime)
+            return expectedHour == slotHour
+        }.count
     }
 }
 

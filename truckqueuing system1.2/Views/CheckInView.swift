@@ -2,92 +2,74 @@ import SwiftUI
 
 struct CheckInView: View {
     @ObservedObject var viewModel: QueueViewModel
-    @State private var searchPlateNumber = ""
-    @State private var showAlert = false
-    @State private var alertMessage = ""
-    
-    var filteredRegistrations: [Registration] {
-        if searchPlateNumber.isEmpty {
-            return viewModel.registrations.filter { $0.checkInTime == nil }
-        } else {
-            return viewModel.registrations.filter { registration in
-                guard let vehicle = registration.vehicle else { return false }
-                return registration.checkInTime == nil && 
-                       vehicle.plateNumber.contains(searchPlateNumber)
-            }
-        }
-    }
     
     var body: some View {
         NavigationView {
             List {
-                Section {
-                    TextField("输入车牌号搜索", text: $searchPlateNumber)
-                }
-                
-                Section(header: Text("待签到列表")) {
-                    ForEach(filteredRegistrations) { registration in
-                        RegistrationRow(registration: registration, viewModel: viewModel) {
-                            if let driver = registration.driver, driver.isContinuousDriver {
-                                if viewModel.canCheckIn(registration: registration) {
-                                    viewModel.checkIn(registration: registration)
-                                } else {
-                                    showAlert = true
-                                    alertMessage = "只能在预定时间前后15分钟内签到"
-                                }
-                            } else {
-                                viewModel.checkIn(registration: registration)
-                            }
-                        }
-                    }
+                // 只显示今天需要签到的连跑司机
+                ForEach(viewModel.getTodayCheckInRegistrations()) { registration in
+                    CheckInRow(registration: registration, viewModel: viewModel)
                 }
             }
             .navigationTitle("签到")
-            .alert("签到失败", isPresented: $showAlert) {
-                Button("确定", role: .cancel) { }
-            } message: {
-                Text(alertMessage)
+            .refreshable {
+                viewModel.loadData()
             }
         }
     }
 }
 
-struct RegistrationRow: View {
+struct CheckInRow: View {
     let registration: Registration
-    let viewModel: QueueViewModel
-    let checkInAction: () -> Void
+    @ObservedObject var viewModel: QueueViewModel
+    @State private var showAlert = false
+    @State private var alertMessage = ""
     
     var body: some View {
-        HStack {
-            VStack(alignment: .leading) {
-                if let driver = registration.driver {
-                    Text(driver.name)
-                        .font(.headline)
-                }
-                if let vehicle = registration.vehicle {
-                    Text(vehicle.plateNumber)
-                        .font(.subheadline)
-                }
-                if let driver = registration.driver,
-                   driver.isContinuousDriver,
-                   let expectedTime = registration.expectedCheckInTime {
-                    Text("预计签到: \(expectedTime.formatted(date: .omitted, time: .shortened))")
-                        .font(.caption)
-                        .foregroundColor(viewModel.canCheckIn(registration: registration) ? .blue : .gray)
-                }
+        VStack(alignment: .leading, spacing: 8) {
+            // 司机和车辆信息
+            HStack {
+                Text(registration.driver?.name ?? "未知司机")
+                    .font(.headline)
+                Spacer()
+                Text(registration.vehicle?.plateNumber ?? "未知车牌")
             }
             
-            Spacer()
-            
-            Button("签到") {
-                checkInAction()
+            // 预约时间段显示
+            if let expectedTime = registration.expectedCheckInTime {
+                let calendar = Calendar.current
+                let hour = calendar.component(.hour, from: expectedTime)
+                let nextHour = (hour + 1) % 24
+                
+                HStack {
+                    Text("预约时间段: \(hour):00-\(nextHour):00")
+                        .foregroundColor(.gray)
+                    
+                    Spacer()
+                    
+                    // 签到状态
+                    if registration.checkInTime != nil {
+                        Text("已签到")
+                            .foregroundColor(.green)
+                    } else if viewModel.canCheckIn(registration: registration) {
+                        Button("签到") {
+                            viewModel.checkIn(registration: registration)
+                            showAlert = true
+                            alertMessage = "签到成功"
+                        }
+                        .buttonStyle(.borderedProminent)
+                    } else {
+                        Text("未到签到时间")
+                            .foregroundColor(.orange)
+                    }
+                }
             }
-            .buttonStyle(.borderedProminent)
-            .disabled(
-                registration.driver?.isContinuousDriver == true && 
-                !viewModel.canCheckIn(registration: registration)
-            )
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 8)
+        .alert("提示", isPresented: $showAlert) {
+            Button("确定", role: .cancel) { }
+        } message: {
+            Text(alertMessage)
+        }
     }
 } 

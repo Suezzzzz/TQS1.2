@@ -11,6 +11,7 @@ struct RegistrationView: View {
     @State private var showSuccessAlert = false
     @State private var showErrorAlert = false
     @State private var errorMessage = ""
+    @State private var selectedTimeSlot: TimeSlot?
     
     var body: some View {
         NavigationView {
@@ -22,10 +23,9 @@ struct RegistrationView: View {
                     Toggle("连跑司机", isOn: $isContinuousDriver)
                     
                     if isContinuousDriver {
-                        DatePicker("预计签到时间",
-                                 selection: $expectedCheckInTime,
-                                 in: Date()...Date().addingTimeInterval(12*3600),
-                                 displayedComponents: [.date, .hourAndMinute])
+                        Section(header: Text("选择签到时间段")) {
+                            TimeSlotSelectionView(viewModel: viewModel, selectedTimeSlot: $selectedTimeSlot)
+                        }
                     }
                 }
                 
@@ -80,7 +80,7 @@ struct RegistrationView: View {
             name: driverName.trimmingCharacters(in: .whitespaces),
             phoneNumber: phoneNumber.trimmingCharacters(in: .whitespaces),
             isContinuous: isContinuousDriver,
-            expectedCheckInTime: isContinuousDriver ? expectedCheckInTime : nil
+            expectedCheckInTime: nil
         )
         
         do {
@@ -89,7 +89,12 @@ struct RegistrationView: View {
                 type: selectedVehicleType
             )
             
-            viewModel.createRegistration(driver: driver, vehicle: vehicle)
+            viewModel.createRegistration(
+                driver: driver,
+                vehicle: vehicle,
+                timeSlot: isContinuousDriver ? selectedTimeSlot : nil
+            )
+            
             showSuccessAlert = true
         } catch RegistrationError.vehicleInPenalty {
             errorMessage = "该车辆在惩罚期内，12小时内不能重新登记"
@@ -110,6 +115,65 @@ struct RegistrationView: View {
         isContinuousDriver = false
         selectedVehicleType = .normal
         expectedCheckInTime = Date()
+    }
+}
+
+struct TimeSlotSelectionView: View {
+    @ObservedObject var viewModel: QueueViewModel
+    @Binding var selectedTimeSlot: TimeSlot?
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("请选择签到时间段：")
+                .font(.headline)
+            
+            ScrollView {
+                LazyVGrid(columns: [GridItem(.flexible())], spacing: 10) {
+                    ForEach(viewModel.timeSlots) { timeSlot in
+                        TimeSlotRow(
+                            timeSlot: timeSlot,
+                            isSelected: selectedTimeSlot == timeSlot,
+                            action: {
+                                selectedTimeSlot = timeSlot
+                            },
+                            viewModel: viewModel
+                        )
+                    }
+                }
+            }
+        }
+        .onAppear {
+            viewModel.updateTimeSlots(for: Date())
+        }
+    }
+}
+
+struct TimeSlotRow: View {
+    let timeSlot: TimeSlot
+    let isSelected: Bool
+    let action: () -> Void
+    @ObservedObject var viewModel: QueueViewModel
+    
+    var body: some View {
+        Button(action: action) {
+            HStack {
+                Text(timeSlot.displayString)
+                    .font(.headline)
+                
+                Spacer()
+                
+                VStack(alignment: .trailing) {
+                    let count = viewModel.getRegistrationCountForTimeSlot(timeSlot)
+                    Text("已预约: \(count)人")
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(isSelected ? Color.blue.opacity(0.1) : Color.gray.opacity(0.1))
+            .cornerRadius(8)
+        }
     }
 }
 

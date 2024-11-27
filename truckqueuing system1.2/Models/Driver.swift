@@ -1,18 +1,30 @@
 import Foundation
 
-struct Driver: Codable {
-    var id: String
-    var name: String
-    var licenseNumber: String
-    var phoneNumber: String
-    var isContinuousDriver: Bool
+enum DriverStatus: String, Codable {
+    case registered = "已登记"
+    case checkedIn = "已签到"
+    case dispatched = "已发车"
+}
+
+struct Driver: Codable, Identifiable {
+    let id: String
+    let name: String
+    let licenseNumber: String
+    let phoneNumber: String
+    let isContinuousDriver: Bool
+    var status: DriverStatus = .registered
+    var checkInTime: Date?
+    var trailerNumber: String?
     
-    init(id: String, name: String, licenseNumber: String, phoneNumber: String, isContinuousDriver: Bool = false) {
-        self.id = id
-        self.name = name
-        self.licenseNumber = licenseNumber
-        self.phoneNumber = phoneNumber
-        self.isContinuousDriver = isContinuousDriver
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case licenseNumber
+        case phoneNumber
+        case isContinuousDriver
+        case status
+        case checkInTime
+        case trailerNumber
     }
     
     // 添加用于UserDefaults存储的方法

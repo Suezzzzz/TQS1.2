@@ -25,59 +25,7 @@ struct HistoryView: View {
                 }
                 
                 ForEach(filteredRegistrations) { registration in
-                    VStack(alignment: .leading, spacing: 8) {
-                        if let driver = registration.driver {
-                            Text("司机: \(driver.name)")
-                                .font(.headline)
-                            
-                            if driver.isContinuousDriver {
-                                Text("连跑司机")
-                                    .font(.caption)
-                                    .foregroundColor(.blue)
-                            }
-                        }
-                        
-                        if let vehicle = registration.vehicle {
-                            Text("车牌: \(vehicle.plateNumber)")
-                                .font(.subheadline)
-                        }
-                        
-                        HStack {
-                            Image(systemName: "calendar")
-                            Text("登记时间: \(formatDate(registration.registrationDate))")
-                                .font(.caption)
-                        }
-                        
-                        HStack {
-                            Image(systemName: "clock")
-                            Text("到期时间: \(formatDate(registration.expiryDate))")
-                                .font(.caption)
-                                .foregroundColor(isExpired(registration.expiryDate) ? .red : .gray)
-                        }
-                        
-                        if let checkInTime = registration.checkInTime {
-                            HStack {
-                                Image(systemName: "checkmark.circle")
-                                Text("签到时间: \(formatDate(checkInTime))")
-                                    .font(.caption)
-                                    .foregroundColor(.green)
-                            }
-                        }
-                        
-                        if registration.isDispatched {
-                            HStack {
-                                Image(systemName: "truck.box")
-                                Text("已发车")
-                                    .font(.caption)
-                                    .foregroundColor(.blue)
-                            }
-                            if let trailerNumber = registration.trailerNumber {
-                                Text("挂车号: \(trailerNumber)")
-                                    .font(.caption)
-                            }
-                        }
-                    }
-                    .padding(.vertical, 4)
+                    HistoryRow(registration: registration)
                 }
             }
             .navigationTitle("历史记录")
@@ -86,15 +34,53 @@ struct HistoryView: View {
             }
         }
     }
+}
+
+struct HistoryRow: View {
+    let registration: Registration
     
-    private func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd HH:mm"
-        return formatter.string(from: date)
-    }
-    
-    private func isExpired(_ date: Date) -> Bool {
-        return date < Date()
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                VStack(alignment: .leading) {
+                    Text(registration.driver?.name ?? "未知司机")
+                        .font(.headline)
+                    Text(registration.vehicle?.plateNumber ?? "未知车牌")
+                        .font(.subheadline)
+                }
+                Spacer()
+                if registration.isDispatched {
+                    Text("已发车")
+                        .foregroundColor(.green)
+                }
+            }
+            
+            if let expectedTime = registration.expectedCheckInTime {
+                let calendar = Calendar.current
+                let hour = calendar.component(.hour, from: expectedTime)
+                let nextHour = (hour + 1) % 24
+                Text("预约时间段: \(hour):00-\(nextHour):00")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            }
+            
+            if let checkInTime = registration.checkInTime {
+                Text("签到时间: \(checkInTime.formatted())")
+                    .font(.caption)
+            }
+            
+            if let dispatchTime = registration.dispatchTime {
+                Text("发车时间: \(dispatchTime.formatted())")
+                    .font(.caption)
+            }
+            
+            if registration.driver?.isContinuousDriver == true {
+                Text("连跑司机")
+                    .font(.caption)
+                    .foregroundColor(.blue)
+            }
+        }
+        .padding(.vertical, 4)
     }
 }
 
