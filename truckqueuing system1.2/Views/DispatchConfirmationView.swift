@@ -3,8 +3,9 @@ import SwiftUI
 struct DispatchConfirmationView: View {
     @ObservedObject var viewModel: QueueViewModel
     @State private var trailerNumber = ""
+    @State private var selectedRoute: Route = .CA_PA
     @Environment(\.presentationMode) var presentationMode
-    let driver: Driver
+    let registration: Registration
     
     var body: some View {
         VStack(spacing: 20) {
@@ -12,8 +13,20 @@ struct DispatchConfirmationView: View {
                 .textFieldStyle(RoundedBorderTextFieldStyle())
                 .padding()
             
+            Picker("路线", selection: $selectedRoute) {
+                ForEach(Route.allCases, id: \.self) { route in
+                    Text(route.rawValue).tag(route)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding()
+            
             Button("确认发车") {
-                viewModel.dispatch(driver: driver, trailerNumber: trailerNumber)
+                viewModel.dispatchVehicle(
+                    registration: registration,
+                    trailerNumber: trailerNumber,
+                    route: selectedRoute
+                )
             }
             .disabled(trailerNumber.isEmpty)
         }

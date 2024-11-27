@@ -69,9 +69,20 @@ struct HistoryRow: View {
                     .font(.caption)
             }
             
+            if let route = registration.route {
+                Text("路线: \(route.rawValue)")
+                    .font(.caption)
+            }
+            
             if let dispatchTime = registration.dispatchTime {
                 Text("发车时间: \(dispatchTime.formatted())")
                     .font(.caption)
+                
+                if let estimatedArrival = registration.estimatedArrivalTime {
+                    Text("预计到达: \(estimatedArrival.formatted())")
+                        .font(.caption)
+                        .foregroundColor(.blue)
+                }
             }
             
             if registration.driver?.isContinuousDriver == true {

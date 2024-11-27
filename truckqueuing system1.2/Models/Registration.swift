@@ -14,6 +14,13 @@ struct Registration: Codable, Identifiable {
     var isDispatched: Bool
     var dispatchTime: Date?
     var trailerNumber: String?
+    var route: Route?
+    
+    var estimatedArrivalTime: Date? {
+        guard let dispatchTime = dispatchTime,
+              let route = route else { return nil }
+        return Calendar.current.date(byAdding: .hour, value: route.transitHours, to: dispatchTime)
+    }
     
     enum RegistrationStatus: String, Codable {
         case pending = "待签到"
@@ -36,6 +43,7 @@ struct Registration: Codable, Identifiable {
         case isDispatched
         case dispatchTime
         case trailerNumber
+        case route
     }
     
     init(id: String = UUID().uuidString,
@@ -50,7 +58,8 @@ struct Registration: Codable, Identifiable {
          missedCheckInTime: Date? = nil,
          isDispatched: Bool = false,
          dispatchTime: Date? = nil,
-         trailerNumber: String? = nil) {
+         trailerNumber: String? = nil,
+         route: Route? = nil) {
         
         self.id = id
         self.driverId = driverId
@@ -65,6 +74,7 @@ struct Registration: Codable, Identifiable {
         self.isDispatched = isDispatched
         self.dispatchTime = dispatchTime
         self.trailerNumber = trailerNumber
+        self.route = route
     }
     
     // 添加用于UserDefaults存储的方法

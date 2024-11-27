@@ -62,8 +62,7 @@ struct DispatchListView: View {
 struct DispatchRow: View {
     let registration: Registration
     @ObservedObject var viewModel: QueueViewModel
-    @State private var showingTrailerInput = false
-    @State private var trailerNumber = ""
+    @State private var showingDispatchSheet = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -83,7 +82,7 @@ struct DispatchRow: View {
                 
                 if registration.checkInTime != nil {
                     Button("发车") {
-                        showingTrailerInput = true
+                        showingDispatchSheet = true
                     }
                     .buttonStyle(.borderedProminent)
                 } else {
@@ -104,15 +103,53 @@ struct DispatchRow: View {
             }
         }
         .padding(.vertical, 4)
-        .alert("输入挂车号", isPresented: $showingTrailerInput) {
-            TextField("挂车号", text: $trailerNumber)
-            Button("确定") {
-                viewModel.dispatchVehicle(registration: registration, trailerNumber: trailerNumber)
-                trailerNumber = ""
+        .sheet(isPresented: $showingDispatchSheet) {
+            DispatchSheetView(registration: registration, viewModel: viewModel)
+        }
+    }
+}
+
+struct DispatchSheetView: View {
+    let registration: Registration
+    @ObservedObject var viewModel: QueueViewModel
+    @Environment(\.dismiss) var dismiss
+    
+    @State private var trailerNumber = ""
+    @State private var selectedRoute: Route = .CA_PA
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("挂车信息")) {
+                    TextField("挂车号", text: $trailerNumber)
+                        .textInputAutocapitalization(.characters)
+                }
+                
+                Section(header: Text("路线选择")) {
+                    Picker("路线", selection: $selectedRoute) {
+                        ForEach(Route.allCases, id: \.self) { route in
+                            Text(route.rawValue).tag(route)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                
+                Section {
+                    Button("确认发车") {
+                        viewModel.dispatchVehicle(
+                            registration: registration,
+                            trailerNumber: trailerNumber,
+                            route: selectedRoute
+                        )
+                        dismiss()
+                    }
+                    .disabled(trailerNumber.isEmpty)
+                }
             }
-            Button("取消", role: .cancel) {
-                trailerNumber = ""
-            }
+            .navigationTitle("发车信息")
+            .navigationBarItems(trailing: Button("取消") {
+                dismiss()
+            })
         }
     }
 }

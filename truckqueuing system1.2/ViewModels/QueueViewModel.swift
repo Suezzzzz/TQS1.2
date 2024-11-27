@@ -227,14 +227,16 @@ class QueueViewModel: ObservableObject {
         }
     }
     
-    func dispatchVehicle(registration: Registration, trailerNumber: String) {
+    func dispatchVehicle(registration: Registration, trailerNumber: String, route: Route) {
         if let index = registrations.firstIndex(where: { $0.id == registration.id }) {
             var updatedRegistration = registration
             updatedRegistration.isDispatched = true
             updatedRegistration.dispatchTime = Date()
             updatedRegistration.trailerNumber = trailerNumber.uppercased().trimmingCharacters(in: .whitespaces)
+            updatedRegistration.route = route
             registrations[index] = updatedRegistration
             sortRegistrations()
+            showingSuccessAlert = true
         }
     }
     
